@@ -1,0 +1,91 @@
+/* Query 1 - Top Ten Countries With The Most Customers */
+
+  SELECT c1.country AS country, 
+         COUNT(*) AS No_of_customers
+    FROM country AS c1
+    JOIN city AS c2
+      ON c1.country_id = c2.country_id
+    JOIN address AS a
+      ON a.city_id = c2.city_id
+    JOIN customer AS c3 
+      ON c3.address_id = a.address_id
+GROUP BY 1
+ORDER BY 2 DESC
+   LIMIT 10;
+
+
+/* Query 2 - Most rented movie category */
+
+   SELECT DISTINCT t2.movie_category, 
+          t2.no_of_rentals
+    FROM (SELECT c.name AS movie_category, 
+                 t1.rental_count AS rental_count, 
+                 SUM(t1.rental_count) OVER (PARTITION BY c.name) AS no_of_rentals
+            FROM  (SELECT i.film_id AS film_id, 
+                          COUNT(r.rental_id) AS rental_count
+             	     FROM rental AS r
+             	     JOIN inventory AS i
+                       ON r.inventory_id = i.inventory_id
+                 GROUP BY 1
+                 ORDER BY i.film_id) AS t1
+            JOIN film f
+              ON f.film_id = t1.film_id
+            JOIN film_category fc
+              ON fc.film_id = f.film_id
+            JOIN category AS c
+              ON c.category_id = fc.category_id
+        GROUP BY 1,2
+        ORDER BY 1) AS t2
+ORDER BY 2 DESC;
+
+/* Query 3 - What were the total rental orders for each store */
+
+ SELECT t3.rental_date, 
+        SUM(One) AS Store_1, 
+        SUM(Two) AS Store_2
+   FROM (SELECT t2.rental_date, 
+                CASE WHEN store_id = 1 THEN total_rentals ELSE 0 END AS One, 
+                CASE WHEN store_id = 2 THEN total_rentals ELSE 0 END AS Two 
+           FROM (SELECT CONCAT(t1.rental_year, '-', t1.rental_month) AS rental_date, 
+                        t1.store_id, 
+                        t1.total_rentals
+                   FROM (SELECT DATE_PART('month', r.rental_date) AS rental_month, 
+                                DATE_PART('year', r.rental_date) AS rental_year, 
+                                s1.store_id AS store_id, 
+                                COUNT(*) AS total_rentals 
+                           FROM store s1
+                           JOIN staff s2
+                             ON s1.store_id = s2.store_id
+                           JOIN rental r
+                             ON r.staff_id = s2.staff_id
+                       GROUP BY 2,1,3
+                       ORDER BY 2,1) t1) t2) t3
+GROUP BY 1
+ORDER BY 1;
+
+/* Query 4 -  */
+  SELECT name, 
+         SUM(One) first_quartile, 
+         SUM(two) second_quartile, 
+         SUM(three) third_quartile, 
+         SUM(four) fourth_quartile
+    FROM (SELECT name, 
+                 CASE WHEN standard_quartile = 1 THEN counts ELSE 0 END AS One, 
+                 CASE WHEN standard_quartile = 2 THEN counts ELSE 0 END AS two, 
+                 CASE WHEN standard_quartile = 3 THEN counts ELSE 0 END AS three, 
+                 CASE WHEN standard_quartile = 4 THEN counts ELSE 0 END AS four 
+            FROM (SELECT t1.name,
+                         t1.standard_quartile,
+                         COUNT(*) AS counts
+                    FROM (SELECT c.name,
+                                 f2.rental_duration,
+                                 NTILE(4) OVER(ORDER BY f2.rental_duration) AS standard_quartile
+                            FROM category AS c
+                            JOIN film_category AS f1
+                              ON c.category_id = f1.category_id 
+                             AND c.name IN ('Animation', 'Children', 'Classics', 'Comedy', 'Family', 'Music')
+                            JOIN film AS f2
+                              ON f2.film_id = f1.film_id) AS t1
+                        GROUP BY 1, 2
+                        ORDER BY 1, 2) t2) t3
+GROUP BY 1;
